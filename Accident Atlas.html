@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accident Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=STIX+Two+Text:ital@0;1&display=swap">
+<style>
+/* VOICE everyday learning: a calm, exact study companion
+   IDEA a city traffic-safety atlas: street grid, collision heat, highway-sign lettering
+   PICTURE the live accident map: a density wedge on a street grid with 500 simulated crashes; drag a box to read its probability
+   COLOUR white paper / asphalt night; collision vermilion leads, map grey supports, signal blue marks boxes, slices and totals
+   TYPE Overpass (from highway signage) for all text; STIX Two italic for math
+   LAYOUT laptop: title and live readout across the top, map full width below, then sections alternating text and figure; phone: title, map, readout */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0f1113);--ink:light-dark(#14161a,#eeede9);--ink2:light-dark(#4b4f57,#bdbcb5);--mute:light-dark(#676b73,#92918a);--line:light-dark(#e3e3df,#2a2d31);--paper:light-dark(#efefeb,#1b1e21);--tint:light-dark(#fff3ee,#191210);--hot:light-dark(#d4381f,#ff6b4f);--lo:light-dark(#fde2d8,#3b1a13);--hi:light-dark(#a3200e,#ff8f75);--blue:light-dark(#2a78d6,#4a95ec);--deep:light-dark(#a8260f,#3d130c);--ondeep:light-dark(#ffffff,#f7e6e0)}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:72px;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Overpass,system-ui,sans-serif;overflow-x:clip}
+.band{padding-block:clamp(28px,4vw,64px);padding-left:max(5vw,16px,env(safe-area-inset-left,0px));padding-right:max(5vw,16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto}
+.tint{background:var(--tint)}
+h1,h2,h3{font-weight:800;line-height:1.05;letter-spacing:-.02em;text-wrap:balance;margin:0}
+h1{font-size:clamp(34px,5vw,52px)}
+h2{font-size:clamp(26px,3.2vw,32px);margin-bottom:14px}
+h3{font-size:17px;letter-spacing:0;line-height:1.3;margin-bottom:6px}
+p{margin:0 0 12px;max-width:66ch}
+.small{font-size:14px;color:var(--ink2)}
+.eq{font-family:"STIX Two Text","Times New Roman",serif;font-size:1.08em}
+.blockeq{font-family:"STIX Two Text","Times New Roman",serif;font-size:19px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 0 14px;overflow-x:auto;line-height:1.7}
+.nw{white-space:nowrap}
+.top{padding-block:6px;background:var(--bg);border-bottom:1px solid var(--line);position:relative;z-index:5}
+@media(min-width:900px){.top{position:sticky;top:0}}
+.bar{display:flex;align-items:center;gap:20px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:var(--ink);text-decoration:none;flex:none}
+.shield{width:30px;height:30px;border-radius:7px;background:var(--hot);color:#fff;display:grid;place-items:center;font:italic 21px/1 "STIX Two Text",serif}
+.links{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.links a{flex:none;color:var(--ink2);text-decoration:none;font-size:15px;font-weight:600;padding:0 10px;border-radius:6px;min-height:44px;display:flex;align-items:center}
+.links a:hover{color:var(--ink);background:var(--paper)}
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);grid-template-areas:"t r" "m m";gap:24px clamp(20px,3vw,48px);align-items:end}
+.ht{grid-area:t}
+.hr{grid-area:r}
+.hm{grid-area:m}
+.lede{color:var(--ink2);margin:16px 0 0}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px}
+.fig{position:relative;min-height:300px}
+.fig>svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hm .fig{height:clamp(360px,56vh,540px)}
+#hmap{touch-action:pan-y;cursor:crosshair}
+.tall{height:clamp(380px,52vh,500px)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px}
+.pair .fig{height:300px}
+.kfig{height:330px}
+.ffig{height:440px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 12px;align-items:end}
+.stat span{display:block;font-size:13px;color:var(--ink2);line-height:1.3}
+.stat b{display:block;font-size:clamp(24px,2.6vw,32px);font-weight:800;line-height:1.15}
+.big{font-size:32px;font-weight:800;line-height:1.1}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--ink);background:var(--bg);color:var(--ink);font:600 15px Overpass,system-ui,sans-serif;cursor:pointer}
+.btn:hover{background:var(--paper)}
+.btn[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.btn.solid{background:var(--hot);border-color:var(--hot);color:#fff}
+.leg{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;color:var(--ink2);margin-top:10px;align-items:center}
+.key{display:inline-block;width:22px;border-top:2px solid var(--hot);vertical-align:middle;margin-right:6px}
+.key.b{border-color:var(--blue)}
+.key.d{border-top:2px dashed var(--mute)}
+.ramp{display:inline-block;width:90px;height:10px;border-radius:2px;background:linear-gradient(90deg,var(--lo),var(--hi));vertical-align:middle;margin:0 6px}
+.dotk{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ink);margin-right:6px;vertical-align:middle}
+.boxk{display:inline-block;width:14px;height:10px;border:2px solid var(--blue);background:color-mix(in srgb,var(--blue) 18%,transparent);margin-right:6px;vertical-align:middle}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(16px,3vw,40px)}
+.sec{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(20px,3vw,48px);align-items:start}
+.sec.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+.sec.flip .txt{order:2}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(20px,3vw,48px);align-items:start;margin-bottom:20px}
+.ctl{display:grid;gap:2px;margin:6px 0 8px}
+.ctl label{display:flex;align-items:baseline;font-weight:600;font-size:15px}
+.ctl label .eq{margin:0 auto 0 .3em}
+.ctl output{margin-left:12px;font-variant-numeric:tabular-nums;font-family:"STIX Two Text",serif;font-size:17px}
+.status{font-weight:600;margin:6px 0 10px}
+.status[data-ok="1"]{color:light-dark(#006300,#3fcf5a)}
+.ro p{margin-bottom:6px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:var(--hot);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--hot)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--hot);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--hot)}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+svg text{font:13px Overpass,system-ui,sans-serif;fill:var(--ink2);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+svg text.mt{font:italic 15px "STIX Two Text","Times New Roman",serif;fill:var(--ink)}
+svg text.val{font:800 15px Overpass,system-ui,sans-serif;fill:var(--ink)}
+.paper{fill:var(--paper)}
+.road{stroke:var(--bg);stroke-width:3}
+.edge{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-linejoin:round}
+.s0{stop-color:var(--lo)}
+.s1{stop-color:var(--hi)}
+.cmp{fill:var(--ink)}
+.dot{fill:var(--ink);stroke:var(--bg);stroke-width:.8}
+.dot.f{opacity:.16}
+.sel{fill:color-mix(in srgb,var(--blue) 18%,transparent);stroke:var(--blue);stroke-width:2}
+.slice{stroke:var(--blue);stroke-width:4;stroke-linecap:round}
+.street{stroke:var(--blue);stroke-width:1.5}
+.gl{stroke:var(--line);stroke-width:1}
+.axis{stroke:var(--mute);stroke-width:1}
+.guide{stroke:var(--mute);stroke-width:1;stroke-dasharray:3 3}
+.cv{fill:none;stroke:var(--hot);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.cvb{fill:none;stroke:var(--blue);stroke-width:2;stroke-linejoin:round}
+.ar{fill:color-mix(in srgb,var(--hot) 16%,transparent)}
+.ref{fill:none;stroke:var(--mute);stroke-width:1.5;stroke-dasharray:5 4}
+.pt{fill:var(--hot);stroke:var(--bg);stroke-width:2}
+.ptb{fill:var(--blue);stroke:var(--bg);stroke-width:2}
+.brk{stroke:var(--hot);stroke-width:3;stroke-linecap:round}
+.mapl{transition:opacity .6s}
+.dim .mapl{opacity:.22}
+.ovx,.ovy{opacity:0;transition:opacity .4s}
+[data-mode=x] .ovx,[data-mode=y] .ovy{opacity:1}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px;background:var(--bg);border-radius:12px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:14px;color:var(--ink2);font-weight:600}
+td:first-child{font-weight:800}
+.deep{background:var(--deep);color:var(--ondeep)}
+.qs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:8px}
+details{background:color-mix(in srgb,var(--ondeep) 10%,transparent);border-radius:10px;padding:14px 16px}
+summary{cursor:pointer;font-weight:600;min-height:28px}
+details p{margin:10px 0 0}
+.foot{background:light-dark(#14161a,#08090a);color:#e9e8e3;font-size:15px}
+.foot a{color:#e9e8e3}
+.fgrid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px}
+.fgrid nav{display:flex;flex-wrap:wrap;gap:4px 18px}
+.fgrid nav a{min-height:36px;display:inline-flex;align-items:center}
+@media(max-width:760px){.sec,.sec.flip,.two,.facts,.fgrid{grid-template-columns:minmax(0,1fr)}.sec.flip .txt{order:0}}
+@media(max-width:700px){.hero{grid-template-columns:minmax(0,1fr);grid-template-areas:"t" "m" "r"}}
+@media(max-width:600px){.pair,.qs{grid-template-columns:minmax(0,1fr)}table{font-size:14px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{border:0;padding:3px 12px}.stack td::before{content:attr(data-l);display:block;font-size:13px;font-weight:400;color:var(--mute)}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.mapl,.ovx,.ovy{transition:none}}
+</style>
+</head>
+<body>
+<header class="band top"><div class="wrap bar">
+<a class="brand" href="#map"><span class="shield">f</span>Accident Atlas</a>
+<nav class="links" aria-label="Sections"><a href="#map">Map</a><a href="#squash">Marginals</a><a href="#slice">Conditionals</a><a href="#lines">Lines</a><a href="#find-k">Find k</a><a href="#cdf">CDF</a><a href="#cheat">Cheat sheet</a><a href="#practice">Practice</a></nav>
+</div></header>
+<main>
+<section class="band" id="map"><div class="wrap hero">
+<div class="ht">
+<h1>Probability is the volume under the map</h1>
+<p class="lede">A made-up town where accidents follow one joint density, <span class="eq nw"><i>f</i><sub>XY</sub>(<i>x</i>, <i>y</i>) = (3/2)<i>x</i></span> on the wedge <span class="eq nw">0 ≤ <i>x</i> ≤ 1</span>, <span class="eq nw">−<i>x</i> ≤ <i>y</i> ≤ <i>x</i></span>. Colour shows how crowded accidents are. The volume under it is probability. Everything below, from marginals to the CDF, is built on this one map.</p>
+</div>
+<div class="hm">
+<div class="fig"><svg id="hmap" role="img" aria-label="Street map with a wedge-shaped accident density that grows from west to east, dotted with 500 simulated accidents"></svg></div>
+<div class="leg"><span>density 0<span class="ramp"></span>1.5</span><span><span class="dotk"></span>simulated accident</span><span><span class="boxk"></span>your box</span></div>
+</div>
+<div class="hr panel ro">
+<h3>Drag a box on the map</h3>
+<p class="small" id="pt" aria-live="polite">Point at the map to read the density there.</p>
+<p class="small">Out of 500 accidents a year. Box: <span id="bx" class="eq">0.40 ≤ x ≤ 0.60, 0.00 ≤ y ≤ 0.20</span></p>
+<div class="stats"><div class="stat"><span>Probability</span><b id="bp">0.030</b></div><div class="stat"><span>Expected</span><b id="be">15.0</b></div><div class="stat"><span>Simulated</span><b id="bo">0</b></div></div>
+<div class="btns"><button class="btn" data-box="0.4,0.6,0,0.2">Small square</button><button class="btn" data-box="0.8,1.2,-1.15,1.15">East fifth</button><button class="btn" data-box="-0.2,1.2,0,1.15">North half</button><button class="btn" data-box="0,0.3,0.5,1">Off the wedge</button><button class="btn solid" id="again">New year of accidents</button></div>
+<p class="small" style="margin:10px 0 0">On a phone, drag sideways or use a preset.</p>
+</div>
+</div></section>
+
+<section class="band tint"><div class="wrap facts">
+<div><h3>No <i>y</i> in the formula means flat north–south</h3><p>Hold <span class="eq"><i>x</i></span> fixed and walk north or south: the density stays at <span class="eq nw">(3/2)<i>x</i></span> the whole way. Every stretch of the same length on that street is equally risky. A missing variable means uniform in that direction, never absent.</p></div>
+<div><h3>Outside the wedge, nothing happens</h3><p>Where <span class="eq nw">|<i>y</i>| &gt; <i>x</i></span> the density is 0. No height means no volume, so no probability. The wedge's edges are where <span class="eq"><i>y</i></span> still matters: they tie the north–south range to <span class="eq"><i>x</i></span>.</p></div>
+<div><h3>Height is density; volume is probability</h3><p>To get a probability, integrate over an area: <span class="eq nw">P((<i>X</i>, <i>Y</i>) ∈ <i>A</i>) = ∬<sub><i>A</i></sub> <i>f</i><sub>XY</sub> d<i>x</i> d<i>y</i></span>. The whole wedge holds <span class="eq nw">∫<sub>0</sub><sup>1</sup> (3/2)<i>x</i> · 2<i>x</i> d<i>x</i> = 1</span>.</p></div>
+</div></section>
+
+<section class="band" id="squash"><div class="wrap sec">
+<div class="txt">
+<h2>Squash the map to get a marginal</h2>
+<p>The marginal of <span class="eq"><i>X</i></span> answers one question: ignoring north and south, how are accidents spread from west to east? At each <span class="eq"><i>x</i></span>, add up the density along the whole north–south strip.</p>
+<p class="blockeq"><i>f</i><sub>X</sub>(<i>x</i>) = ∫<sub>−<i>x</i></sub><sup><i>x</i></sup> (3/2)<i>x</i> d<i>y</i> = 3<i>x</i><sup>2</sup><br><i>f</i><sub>Y</sub>(<i>y</i>) = ∫<sub>|<i>y</i>|</sub><sup>1</sup> (3/2)<i>x</i> d<i>x</i> = (3/4)(1 − <i>y</i><sup>2</sup>)</p>
+<p>That is not the side view. At <span class="eq nw"><i>y</i> = 0</span> the surface only rises like <span class="eq nw">(3/2)<i>x</i></span>, but further east each strip is also wider, so more volume piles up.</p>
+<div class="btns" role="group" aria-label="Squash direction"><button class="btn" data-m="map" aria-pressed="true">Map</button><button class="btn" data-m="x" aria-pressed="false">Onto the x-axis</button><button class="btn" data-m="y" aria-pressed="false">Onto the y-axis</button></div>
+<p class="small" id="sqr" aria-live="polite" style="margin-top:12px">Each dot is one simulated accident. Pick a direction to squash them.</p>
+</div>
+<div>
+<div class="fig tall"><svg id="sq" role="img" aria-label="Simulated accidents that slide into piles along the x-axis or y-axis, with the marginal density curves drawn over the piles"></svg></div>
+<div class="leg"><span><span class="dotk"></span>accident</span><span><span class="key b"></span>marginal density</span><span><span class="key d"></span>side view at <i>y</i> = 0, (3/2)<i>x</i></span></div>
+</div>
+</div></section>
+
+<section class="band tint" id="slice"><div class="wrap">
+<div class="two">
+<div>
+<h2>Slice one street to get a conditional</h2>
+<p>Fix a north–south street <span class="eq nw"><i>x</i> = <i>x</i><sub>0</sub></span>. Along it, the density is flat at <span class="eq nw">(3/2)<i>x</i><sub>0</sub></span> from <span class="eq nw"><i>y</i> = −<i>x</i><sub>0</sub></span> to <span class="eq nw"><i>x</i><sub>0</sub></span>. That slice has area <span class="eq nw">3<i>x</i><sub>0</sub><sup>2</sup></span>, which is exactly <span class="eq nw"><i>f</i><sub>X</sub>(<i>x</i><sub>0</sub>)</span>. Divide by it and the area becomes 1:</p>
+<p class="blockeq"><i>f</i><sub>Y|X</sub>(<i>y</i> | <i>x</i><sub>0</sub>) = <i>f</i><sub>XY</sub> / <i>f</i><sub>X</sub> = 1/(2<i>x</i><sub>0</sub>), for −<i>x</i><sub>0</sub> ≤ <i>y</i> ≤ <i>x</i><sub>0</sub></p>
+<p>Once you know the street, every point along it is equally likely. Short streets in the west get tall, narrow conditionals; long streets in the east get low, wide ones.</p>
+</div>
+<div class="panel ro">
+<div class="ctl"><label for="x0">Street <span class="eq"><i>x</i><sub>0</sub></span><output id="x0o">0.30</output></label><input type="range" id="x0" min="0.1" max="1" step="0.01" value="0.3"></div>
+<p id="cr1"></p><p id="cr2"></p><p id="cr3" class="small"></p>
+<h3 style="margin-top:14px">So X and Y are dependent</h3>
+<p class="small">Take the point (0.5, 0.8). It sits outside the wedge, so <span class="eq nw"><i>f</i><sub>XY</sub> = 0</span>. But <span class="eq nw"><i>f</i><sub>X</sub>(0.5) · <i>f</i><sub>Y</sub>(0.8) = 0.75 × 0.27 = 0.2025</span>. Independence needs <span class="eq nw"><i>f</i><sub>XY</sub> = <i>f</i><sub>X</sub><i>f</i><sub>Y</sub></span> everywhere, so it fails. Learning that <span class="eq nw"><i>y</i> = 0.8</span> tells you <span class="eq nw"><i>x</i> ≥ 0.8</span>.</p>
+</div>
+</div>
+<div class="pair">
+<div class="panel"><div class="fig"><svg id="cmap" role="img" aria-label="Map with the chosen street highlighted and the accidents near it emphasised"></svg></div></div>
+<div class="panel"><div class="fig"><svg id="cplot" role="img" aria-label="Conditional density of y given the chosen street: a flat rectangle of area 1"></svg></div>
+<div class="leg"><span><span class="key"></span>conditional, 1/(2<i>x</i><sub>0</sub>)</span><span><span class="key d"></span>raw slice of <i>f</i><sub>XY</sub>, (3/2)<i>x</i><sub>0</sub></span></div></div>
+</div>
+</div></section>
+
+<section class="band" id="lines"><div class="wrap">
+<div class="two">
+<div>
+<h2>A single street has zero probability</h2>
+<p>In a continuous model, probability needs width. The chance that an accident lands within <span class="eq nw"><i>w</i>/2</span> of the street <span class="eq nw"><i>x</i> = 0.5</span> is</p>
+<p class="blockeq">P = (0.5 + <i>w</i>/2)<sup>3</sup> − (0.5 − <i>w</i>/2)<sup>3</sup> = 0.75<i>w</i> + <i>w</i><sup>3</sup>/4</p>
+<p>Shrink the width to zero and the probability goes to zero, so <span class="eq nw">P(<i>X</i> = 0.5) = 0</span>. The leading term <span class="eq nw">0.75<i>w</i></span> is <span class="eq nw"><i>f</i><sub>X</sub>(0.5) × <i>w</i></span>: density is probability per unit of width.</p>
+<p class="small">If you only record which street pair (3rd Ave and 5th St), switch to a joint pmf <span class="eq nw"><i>p</i>(<i>x</i>, <i>y</i>) = P(<i>X</i> = <i>x</i>, <i>Y</i> = <i>y</i>)</span>, a table with one cell per intersection. Then each street does carry its own probability.</p>
+</div>
+<div class="panel ro">
+<div class="ctl"><label for="w">Band width <span class="eq"><i>w</i></span><output id="wo">0.200</output></label><input type="range" id="w" min="0" max="0.5" step="0.005" value="0.2"></div>
+<div class="big" id="lp1">0.152</div>
+<p id="lp2" class="small"></p><p id="lp3"></p>
+</div>
+</div>
+<div class="pair">
+<div class="panel"><div class="fig"><svg id="lmap" role="img" aria-label="Map with a band of width w around the street x = 0.5"></svg></div></div>
+<div class="panel"><div class="fig"><svg id="lplot" role="img" aria-label="Probability of the band as a function of its width, shrinking to zero"></svg></div>
+<div class="leg"><span><span class="key"></span>exact P(<i>w</i>)</span><span><span class="key d"></span>0.75<i>w</i>, density × width</span></div></div>
+</div>
+</div></section>
+
+<section class="band tint" id="find-k"><div class="wrap sec">
+<div class="txt">
+<h2>One road: find k so the area is 1</h2>
+<p>Now take a single road. Accidents along it follow <span class="eq nw"><i>f</i>(<i>x</i>) = <i>k</i>(3 − <i>x</i><sup>2</sup>)</span> for <span class="eq nw">−1 ≤ <i>x</i> ≤ 1</span>, and 0 elsewhere. Every density encloses total area 1, and that pins down <span class="eq"><i>k</i></span>.</p>
+<p class="blockeq">∫<sub>−1</sub><sup>1</sup> <i>k</i>(3 − <i>x</i><sup>2</sup>) d<i>x</i> = <i>k</i>[3<i>x</i> − <i>x</i><sup>3</sup>/3]<sub>−1</sub><sup>1</sup> = <i>k</i>(8/3 + 8/3) = (16/3)<i>k</i><br>(16/3)<i>k</i> = 1 &nbsp;⇒&nbsp; <i>k</i> = 3/16</p>
+<p>The road is busiest at the centre, <span class="eq nw"><i>f</i>(0) = 9/16 ≈ 0.56</span>, and quietest at the ends, <span class="eq nw"><i>f</i>(±1) = 3/8</span>. It never drops to zero inside the road.</p>
+<div class="ctl"><label for="k">Try a value of <span class="eq"><i>k</i></span><output id="ko">0.15</output></label><input type="range" id="k" min="0.05" max="0.3" step="0.0025" value="0.15"></div>
+<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="stat"><span>Area = (16/3)k</span><b id="ka">0.800</b></div><div class="stat"><span>Needed</span><b>1.000</b></div></div>
+<p class="status" id="ks" aria-live="polite">Too little area. Raise k.</p>
+<button class="btn solid" id="solve">Solve for k</button>
+</div>
+<div class="panel"><div class="fig kfig"><svg id="kfig" role="img" aria-label="The curve k times (3 minus x squared) on minus 1 to 1, with the area under it shaded"></svg></div></div>
+</div></section>
+
+<section class="band" id="cdf"><div class="wrap sec flip">
+<div class="txt">
+<h2>F(x) adds up the area as you move along the road</h2>
+<p><span class="eq nw"><i>F</i>(<i>x</i>) = P(<i>X</i> ≤ <i>x</i>)</span> is the area under <span class="eq"><i>f</i></span> from the west end up to <span class="eq"><i>x</i></span>. Use <span class="eq"><i>t</i></span> inside the integral so it doesn't clash with the limit.</p>
+<p class="blockeq"><i>F</i>(<i>x</i>) = ∫<sub>−1</sub><sup><i>x</i></sup> (3/16)(3 − <i>t</i><sup>2</sup>) d<i>t</i> = (8 + 9<i>x</i> − <i>x</i><sup>3</sup>)/16 <span class="nw">for −1 ≤ <i>x</i> ≤ 1</span><br><i>F</i>(<i>x</i>) = 0 for <i>x</i> &lt; −1, &nbsp; <i>F</i>(<i>x</i>) = 1 for <i>x</i> &gt; 1</p>
+<p>Checks: <span class="eq nw"><i>F</i>(−1) = 0</span>, <span class="eq nw"><i>F</i>(0) = 1/2</span> because <span class="eq"><i>f</i></span> is symmetric, <span class="eq nw"><i>F</i>(1) = 1</span>, and <span class="eq nw"><i>F</i>′(<i>x</i>) = <i>f</i>(<i>x</i>)</span>. Probabilities become subtraction, <span class="eq nw">P(<i>a</i> ≤ <i>X</i> ≤ <i>b</i>) = <i>F</i>(<i>b</i>) − <i>F</i>(<i>a</i>)</span>: the shaded area on top equals the jump on the bottom.</p>
+<div class="ctl"><label for="a">From <span class="eq"><i>a</i></span><output id="ao">−0.50</output></label><input type="range" id="a" min="-1" max="1" step="0.01" value="-0.5"></div>
+<div class="ctl"><label for="b">To <span class="eq"><i>b</i></span><output id="bo2">0.50</output></label><input type="range" id="b" min="-1" max="1" step="0.01" value="0.5"></div>
+<div class="btns"><button class="btn" data-ab="-1,0">F(0)</button><button class="btn" data-ab="-0.5,0.5">Middle half</button><button class="btn" data-ab="0.5,1">East of 0.5</button><button class="btn" data-ab="-1,1">Whole road</button></div>
+<p id="fr" class="eq" style="margin-top:12px" aria-live="polite"></p>
+</div>
+<div class="panel"><div class="fig ffig"><svg id="Ffig" role="img" aria-label="Top: the density with the area between a and b shaded. Bottom: the CDF with the jump between F(a) and F(b) marked"></svg></div></div>
+</div></section>
+
+<section class="band tint" id="cheat"><div class="wrap">
+<h2>Cheat sheet</h2>
+<div class="scroll"><table class="stack">
+<thead><tr><th>Idea</th><th>Formula</th><th>On the map</th><th>In our examples</th></tr></thead>
+<tbody>
+<tr><td data-l="Idea">Density</td><td data-l="Formula" class="eq">P(<i>a</i> ≤ <i>X</i> ≤ <i>b</i>) = ∫<sub><i>a</i></sub><sup><i>b</i></sup> <i>f</i>(<i>x</i>) d<i>x</i></td><td data-l="On the map">Height shows how crowded; area is probability</td><td data-l="In our examples" class="eq"><i>f</i>(<i>x</i>) = (3/16)(3 − <i>x</i><sup>2</sup>)</td></tr>
+<tr><td data-l="Idea">CDF</td><td data-l="Formula" class="eq"><i>F</i>(<i>x</i>) = ∫<sub>−∞</sub><sup><i>x</i></sup> <i>f</i>(<i>t</i>) d<i>t</i>, &nbsp;<i>F</i>′ = <i>f</i></td><td data-l="On the map">Share of accidents west of <i>x</i></td><td data-l="In our examples" class="eq">(8 + 9<i>x</i> − <i>x</i><sup>3</sup>)/16</td></tr>
+<tr><td data-l="Idea">Joint density</td><td data-l="Formula" class="eq">P((<i>X</i>, <i>Y</i>) ∈ <i>A</i>) = ∬<sub><i>A</i></sub> <i>f</i><sub>XY</sub> d<i>x</i> d<i>y</i></td><td data-l="On the map">Volume over a patch of the map</td><td data-l="In our examples" class="eq">(3/2)<i>x</i> on 0 ≤ <i>x</i> ≤ 1, |<i>y</i>| ≤ <i>x</i></td></tr>
+<tr><td data-l="Idea">Marginal of X</td><td data-l="Formula" class="eq"><i>f</i><sub>X</sub>(<i>x</i>) = ∫ <i>f</i><sub>XY</sub>(<i>x</i>, <i>y</i>) d<i>y</i></td><td data-l="On the map">Squash the map onto the x-axis</td><td data-l="In our examples" class="eq">3<i>x</i><sup>2</sup> on 0 ≤ <i>x</i> ≤ 1</td></tr>
+<tr><td data-l="Idea">Marginal of Y</td><td data-l="Formula" class="eq"><i>f</i><sub>Y</sub>(<i>y</i>) = ∫ <i>f</i><sub>XY</sub>(<i>x</i>, <i>y</i>) d<i>x</i></td><td data-l="On the map">Squash it onto the y-axis</td><td data-l="In our examples" class="eq">(3/4)(1 − <i>y</i><sup>2</sup>) on −1 ≤ <i>y</i> ≤ 1</td></tr>
+<tr><td data-l="Idea">Conditional</td><td data-l="Formula" class="eq"><i>f</i><sub>Y|X</sub>(<i>y</i> | <i>x</i>) = <i>f</i><sub>XY</sub>(<i>x</i>, <i>y</i>) / <i>f</i><sub>X</sub>(<i>x</i>)</td><td data-l="On the map">One street's slice, rescaled to area 1</td><td data-l="In our examples" class="eq">1/(2<i>x</i>) on −<i>x</i> ≤ <i>y</i> ≤ <i>x</i></td></tr>
+<tr><td data-l="Idea">Independence</td><td data-l="Formula" class="eq"><i>f</i><sub>XY</sub> = <i>f</i><sub>X</sub> · <i>f</i><sub>Y</sub> everywhere</td><td data-l="On the map">One direction tells you nothing about the other</td><td data-l="In our examples">Fails: the wedge is not a rectangle</td></tr>
+<tr><td data-l="Idea">Points and lines</td><td data-l="Formula" class="eq">P(<i>X</i> = <i>c</i>) = 0</td><td data-l="On the map">Probability needs width</td><td data-l="In our examples" class="eq">0.75<i>w</i> + <i>w</i><sup>3</sup>/4 near <i>x</i> = 0.5</td></tr>
+</tbody></table></div>
+<p class="small" style="margin-top:14px">Not to be confused with <span class="eq"><i>f</i><sub><i>xy</i></sub></span> in calculus, the mixed partial derivative ∂²<i>f</i>/∂<i>x</i>∂<i>y</i>: differentiate once in each direction to measure how the surface twists.</p>
+</div></section>
+
+<section class="band deep" id="practice"><div class="wrap">
+<h2>Practice on the same town</h2>
+<p>Work each one out, then open it to check.</p>
+<div class="qs">
+<details><summary>Road: what is P(X &gt; 0.5)?</summary><p class="eq">1 − <i>F</i>(0.5) = 1 − 12.375/16 = 3.625/16 ≈ 0.227</p></details>
+<details><summary>Map: what share of accidents happen west of x = 0.5?</summary><p class="eq"><i>F</i><sub>X</sub>(0.5) = ∫<sub>0</sub><sup>0.5</sup> 3<i>x</i><sup>2</sup> d<i>x</i> = 0.5<sup>3</sup> = 0.125</p></details>
+<details><summary>Map: what is f<sub>Y</sub>(0.5)?</summary><p class="eq">(3/4)(1 − 0.25) = 0.5625. Check: ∫<sub>0.5</sub><sup>1</sup> (3/2)<i>x</i> d<i>x</i> = 0.75 × 0.75 = 0.5625</p></details>
+<details><summary>Map: an accident happened on the street x = 0.25. What is the chance it was north of y = 0.1?</summary><p class="eq">Given <i>x</i> = 0.25, <i>Y</i> is uniform on [−0.25, 0.25] at height 1/(2 × 0.25) = 2, so P = 2 × (0.25 − 0.1) = 0.3</p></details>
+</div>
+</div></section>
+</main>
+
+<footer class="band foot"><div class="wrap fgrid">
+<div><p style="font-weight:800;font-size:17px;margin-bottom:6px">Accident Atlas</p><p>A study companion for densities, CDFs, joint densities, marginals and conditionals. The 500 accidents are simulated from the model in your browser each time you press New year of accidents. They are not real crash data.</p></div>
+<nav aria-label="Footer"><a href="#map">Map</a><a href="#squash">Marginals</a><a href="#slice">Conditionals</a><a href="#lines">Lines</a><a href="#find-k">Find k</a><a href="#cdf">CDF</a><a href="#cheat">Cheat sheet</a><a href="#practice">Practice</a></nav>
+</div></footer>
+
+<script>
+{
+const $=s=>document.querySelector(s);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fx=(v,d)=>(v<-5e-13?'−':'')+Math.abs(v).toFixed(d);
+const r1=v=>Math.round(v*10)/10;
+const N=500,K=3/16;
+const F1=x=>x<-1?0:x>1?1:(8+9*x-x**3)/16;
+const fX=x=>x>=0&&x<=1?3*x*x:0;
+const fY=y=>Math.abs(y)<=1?0.75*(1-y*y):0;
+let seed=155212;
+const rnd=()=>(seed=seed*16807%2147483647)/2147483647;
+let P=[];
+const sim=()=>{P=[];for(let i=0;i<N;i++){const x=Math.cbrt(rnd());P.push([x,(2*rnd()-1)*x])}};
+sim();
+const MV={x0:-0.2,x1:1.2,y0:-1.15,y1:1.15};
+const frame=(s,v,m)=>{const W=s.clientWidth,H=s.clientHeight,pw=Math.max(10,W-m.l-m.r),ph=Math.max(10,H-m.t-m.b);return{W,H,m,pw,ph,X:d=>m.l+(d-v.x0)/(v.x1-v.x0)*pw,Y:d=>m.t+(v.y1-d)/(v.y1-v.y0)*ph,iX:p=>v.x0+(p-m.l)/pw*(v.x1-v.x0),iY:p=>v.y1-(p-m.t)/ph*(v.y1-v.y0)}};
+const path=pts=>'M'+pts.map(p=>r1(p[0])+','+r1(p[1])).join('L');
+const txt=(x,y,s,c,a)=>`<text x="${r1(x)}" y="${r1(y)}" text-anchor="${a||'start'}" class="${c||''}">${s}</text>`;
+const line=(x1,y1,x2,y2,c)=>`<line class="${c}" x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}"/>`;
+const range=(a,b,n)=>Array.from({length:n+1},(_,i)=>a+(b-a)*i/n);
+
+const mapSvg=(F,id,full)=>{const{X,Y,W}=F;
+ let o=`<defs><linearGradient id="g${id}" gradientUnits="userSpaceOnUse" x1="${X(0)}" y1="0" x2="${X(1)}" y2="0"><stop offset="0" class="s0"/><stop offset="1" class="s1"/></linearGradient></defs>`;
+ o+=`<rect class="paper" x="${X(MV.x0)}" y="${Y(MV.y1)}" width="${X(MV.x1)-X(MV.x0)}" height="${Y(MV.y0)-Y(MV.y1)}"/>`;
+ o+=`<polygon fill="url(#g${id})" points="${X(0)},${Y(0)} ${X(1)},${Y(1)} ${X(1)},${Y(-1)}"/>`;
+ for(let i=-2;i<=12;i++)o+=line(X(i/10),Y(MV.y1),X(i/10),Y(MV.y0),'road');
+ for(let j=-4;j<=4;j++)o+=line(X(MV.x0),Y(j/4),X(MV.x1),Y(j/4),'road');
+ o+=`<polygon class="edge" points="${X(0)},${Y(0)} ${X(1)},${Y(1)} ${X(1)},${Y(-1)}"/>`;
+ const by=Y(MV.y0)+18;
+ [0,0.5,1].forEach(v=>o+=txt(X(v),by,String(v),'','middle'));
+ [-1,0,1].forEach(v=>o+=txt(X(MV.x0)-6,Y(v)+4,fx(v,0),'','end'));
+ if(full){
+  o+=txt(X(0.32),Y(0.5),'y = x','mt','end')+txt(X(0.32),Y(-0.5)+12,'y = −x','mt','end');
+  const cx=X(-0.12),cy=Y(0.95);
+  o+=`<g transform="translate(${r1(cx)},${r1(cy)})"><path class="cmp" d="M0,-12L6,6L0,2L-6,6Z"/>${txt(0,-16,'N','val','middle')}</g>`;
+  if(W>=520)o+=txt(X(MV.x0),by,'← west','','start')+txt(X(MV.x1),by,'east →','','end');
+ }
+ return o};
+const dotsSvg=(F,cls)=>P.map((p,i)=>`<circle class="dot ${cls?cls(i):''}" cx="${r1(F.X(p[0]))}" cy="${r1(F.Y(p[1]))}" r="2.3"/>`).join('');
+
+/* hero map */
+const hs=$('#hmap');let HF,sel=[0.4,0.6,0,0.2],prev=sel,drag=null;
+const boxP=b=>{const lo=Math.max(b[0],0),hi=Math.min(b[1],1);if(hi<=lo)return 0;const n=400,h=(hi-lo)/n;let s=0;for(let i=0;i<n;i++){const x=lo+(i+0.5)*h;s+=1.5*x*Math.max(0,Math.min(b[3],x)-Math.max(b[2],-x))}return s*h};
+const readBox=()=>{const[x1,x2,y1,y2]=sel,p=boxP(sel);let n=0;P.forEach(q=>{if(q[0]>=x1&&q[0]<=x2&&q[1]>=y1&&q[1]<=y2)n++});
+ $('#bx').textContent=`${fx(x1,2)} ≤ x ≤ ${fx(x2,2)}, ${fx(y1,2)} ≤ y ≤ ${fx(y2,2)}`;
+ $('#bp').textContent=p.toFixed(3);$('#be').textContent=(N*p).toFixed(1);$('#bo').textContent=n};
+const upSel=()=>{const r=hs.querySelector('.sel');if(r&&HF){const[x1,x2,y1,y2]=sel;r.setAttribute('x',r1(HF.X(x1)));r.setAttribute('y',r1(HF.Y(y2)));r.setAttribute('width',r1(HF.X(x2)-HF.X(x1)));r.setAttribute('height',r1(HF.Y(y1)-HF.Y(y2)))}readBox()};
+const drawHero=()=>{HF=frame(hs,MV,{t:10,r:12,b:30,l:34});hs.innerHTML=mapSvg(HF,'h',true)+dotsSvg(HF)+'<rect class="sel" rx="2"/>';upSel()};
+const cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+const loc=e=>{const r=hs.getBoundingClientRect();return[cl(HF.iX(e.clientX-r.left),MV.x0,MV.x1),cl(HF.iY(e.clientY-r.top),MV.y0,MV.y1)]};
+const readPt=(x,y)=>{const o=$('#pt');if(x==null){o.textContent='Point at the map to read the density there.';return}
+ const inside=x>=0&&x<=1&&Math.abs(y)<=x;o.textContent=`At x = ${fx(x,2)}, y = ${fx(y,2)}: `+(inside?`f = (3/2)(${x.toFixed(2)}) = ${(1.5*x).toFixed(2)}`:'outside the wedge, f = 0')};
+hs.addEventListener('pointerdown',e=>{if(e.button)return;prev=sel;drag=loc(e);try{hs.setPointerCapture(e.pointerId)}catch(_){}sel=[drag[0],drag[0],drag[1],drag[1]];upSel()});
+hs.addEventListener('pointermove',e=>{const[x,y]=loc(e);readPt(x,y);if(!drag)return;sel=[Math.min(drag[0],x),Math.max(drag[0],x),Math.min(drag[1],y),Math.max(drag[1],y)];upSel()});
+const endDrag=()=>{if(!drag)return;drag=null;if(sel[1]-sel[0]<0.01||sel[3]-sel[2]<0.01)sel=prev;upSel()};
+hs.addEventListener('pointerup',endDrag);hs.addEventListener('pointercancel',endDrag);
+hs.addEventListener('pointerleave',()=>{if(!drag)readPt(null)});
+document.querySelectorAll('[data-box]').forEach(b=>b.addEventListener('click',()=>{sel=b.dataset.box.split(',').map(Number);upSel()}));
+
+/* squash: marginals */
+const ss=$('#sq');let mode='map',from='map',tt=1,anim=0,dots=[];const A={map:[],x:[],y:[]};
+const pile=(bins,bpx,avail)=>{const mx=Math.max(1,...bins.map(b=>b.length));let sp=5.8,per=1;do{sp-=0.2;per=Math.max(1,Math.floor(bpx/sp))}while(Math.ceil(mx/per)*sp>avail&&sp>1.8);return{sp,per}};
+const place=()=>{const e=tt>=1?1:(1-Math.cos(Math.PI*tt))/2,a=A[from],b=A[mode];dots.forEach((d,i)=>{d.setAttribute('cx',r1(a[i][0]+(b[i][0]-a[i][0])*e));d.setAttribute('cy',r1(a[i][1]+(b[i][1]-a[i][1])*e))})};
+const readSq=()=>{const o=$('#sqr');
+ if(mode==='x'){const n=P.filter(p=>p[0]>=0.8).length;o.textContent=`${n} of 500 simulated accidents have x ≥ 0.8. The marginal predicts 1 − 0.8³ = 0.488, about 244, even though that strip is only a fifth of the width.`}
+ else if(mode==='y'){const n=P.filter(p=>Math.abs(p[1])<=0.2).length;o.textContent=`${n} of 500 have −0.2 ≤ y ≤ 0.2. The marginal predicts ∫ (3/4)(1 − y²) dy = 0.296 over that range, about 148.`}
+ else o.textContent='Each dot is one simulated accident. Pick a direction to squash them.'};
+const drawSq=()=>{const F=frame(ss,MV,{t:10,r:12,b:30,l:34}),{X,Y,m}=F;
+ A.map=P.map(p=>[X(p[0]),Y(p[1])]);
+ const bx=Array.from({length:20},()=>[]);P.forEach((p,i)=>bx[Math.min(19,Math.floor(p[0]/0.05))].push(i));
+ const bpx=X(0.05)-X(0),base=Y(MV.y0),gx=pile(bx,bpx,(base-m.t)*0.8);
+ bx.forEach((b,k)=>b.sort((i,j)=>P[i][1]-P[j][1]).forEach((i,j)=>{A.x[i]=[X(k*0.05)+(j%gx.per+0.5)*bpx/gx.per,base-(Math.floor(j/gx.per)+0.5)*gx.sp]}));
+ const by=Array.from({length:20},()=>[]);P.forEach((p,i)=>by[cl(Math.floor((p[1]+1)/0.1),0,19)].push(i));
+ const bpy=Y(0)-Y(0.1),left=X(MV.x0),gy=pile(by,bpy,(X(MV.x1)-left)*0.62);
+ by.forEach((b,k)=>b.sort((i,j)=>P[i][0]-P[j][0]).forEach((i,j)=>{A.y[i]=[left+(Math.floor(j/gy.per)+0.5)*gy.sp,Y(-1+(k+1)*0.1)+(j%gy.per+0.5)*bpy/gy.per]}));
+ const hx=d=>base-N*0.05*d/gx.per*gx.sp,hy=d=>left+N*0.1*d/gy.per*gy.sp,xs=range(0,1,100);
+ let ov=`<g class="ovx"><path class="ref" d="${path(xs.map(x=>[X(x),hx(1.5*x)]))}"/><path class="cvb" d="${path(xs.map(x=>[X(x),hx(fX(x))]))}"/>`+txt(X(1)+6,hx(3)+5,'3x²','mt')+txt(X(1)+6,hx(1.5)+5,'(3/2)x','mt')+'</g>';
+ ov+=`<g class="ovy"><path class="cvb" d="${path(range(-1,1,100).map(y=>[hy(fY(y)),Y(y)]))}"/>`+txt(hy(0.75)+8,Y(0)+5,'(3/4)(1 − y²)','mt')+'</g>';
+ const r=Math.min(2.3,Math.min(gx.sp,gy.sp)*0.42);
+ ss.innerHTML=`<g class="mapl">${mapSvg(F,'s',false)}</g>${ov}<g>${P.map(()=>`<circle class="dot" r="${r1(r*10)/10}"/>`).join('')}</g>`;
+ dots=[...ss.querySelectorAll('.dot')];place();ss.classList.toggle('dim',mode!=='map');ss.dataset.mode=tt>=1?mode:''};
+const go=md=>{if(md===mode)return;from=mode;mode=md;const me=++anim;
+ document.querySelectorAll('[data-m]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===md)));
+ ss.classList.toggle('dim',md!=='map');ss.dataset.mode='';readSq();
+ if(reduce){tt=1;place();ss.dataset.mode=mode;return}
+ tt=0;const t0=performance.now();const step=now=>{if(me!==anim)return;tt=Math.min(1,(now-t0)/1000);place();if(tt<1)requestAnimationFrame(step);else ss.dataset.mode=mode};requestAnimationFrame(step)};
+document.querySelectorAll('[data-m]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.m)));
+
+/* slice: conditionals */
+const cm=$('#cmap'),cp=$('#cplot'),xi=$('#x0');
+const drawC=()=>{const x0=+xi.value,h=1/(2*x0),s=1.5*x0,fx0=fX(x0);$('#x0o').textContent=x0.toFixed(2);
+ const F=frame(cm,MV,{t:8,r:8,b:26,l:30}),near=i=>Math.abs(P[i][0]-x0)<=0.025;let n=0;P.forEach((p,i)=>{if(near(i))n++});
+ cm.innerHTML=mapSvg(F,'c',false)+line(F.X(x0),F.Y(x0),F.X(x0),F.Y(-x0),'slice')+dotsSvg(F,i=>near(i)?'':'f');
+ const v={x0:-1.15,x1:1.15,y0:0,y1:5.4},G=frame(cp,v,{t:12,r:14,b:30,l:30}),{X,Y}=G;let g='';
+ [1,2,3,4,5].forEach(d=>g+=line(X(v.x0),Y(d),X(v.x1),Y(d),'gl')+txt(X(v.x0)-6,Y(d)+4,d,'','end'));
+ g+=line(X(v.x0),Y(0),X(v.x1),Y(0),'axis');[-1,0,1].forEach(d=>g+=txt(X(d),Y(0)+18,fx(d,0),'','middle'));
+ g+=txt(X(v.x1),Y(0)+18,'y','mt','end');
+ g+=`<path class="ar" d="${path([[-x0,0],[-x0,h],[x0,h],[x0,0]].map(p=>[X(p[0]),Y(p[1])]))}Z"/>`;
+ g+=`<path class="ref" d="${path([[X(-x0),Y(s)],[X(x0),Y(s)]])}"/>`;
+ g+=`<path class="cv" d="${path([[v.x0,0],[-x0,0],[-x0,h],[x0,h],[x0,0],[v.x1,0]].map(p=>[X(p[0]),Y(p[1])]))}"/>`;
+ g+=txt(X(0),s<=h?Y(h)-8:Y(h)+18,'area 1','val','middle');
+ cp.innerHTML=g;
+ $('#cr1').innerHTML=`<span class="eq"><i>f</i><sub>X</sub>(${x0.toFixed(2)}) = 3(${x0.toFixed(2)})<sup>2</sup> = ${fx0.toFixed(3)}</span>`;
+ $('#cr2').innerHTML=`<span class="eq"><i>f</i><sub>Y|X</sub> = ${s.toFixed(3)} ÷ ${fx0.toFixed(3)} = <b>${h.toFixed(3)}</b> for −${x0.toFixed(2)} ≤ <i>y</i> ≤ ${x0.toFixed(2)}</span>`;
+ $('#cr3').textContent=`Area check: width ${(2*x0).toFixed(2)} × height ${h.toFixed(3)} = 1. Accidents within 0.025 of this street: ${n} of 500, spread evenly from south to north.`};
+xi.addEventListener('input',drawC);
+
+/* lines: zero width */
+const lm=$('#lmap'),lp=$('#lplot'),wi=$('#w');
+const drawL=()=>{const w=+wi.value,a=0.5-w/2,b=0.5+w/2,p=0.75*w+w**3/4;$('#wo').textContent=w.toFixed(3);
+ const F=frame(lm,MV,{t:8,r:8,b:26,l:30}),inb=i=>P[i][0]>=a&&P[i][0]<=b;let n=0;P.forEach((q,i)=>{if(inb(i))n++});
+ let o=mapSvg(F,'l',false);
+ if(w>0)o+=`<rect class="sel" x="${r1(F.X(a))}" y="${r1(F.Y(MV.y1))}" width="${r1(F.X(b)-F.X(a))}" height="${r1(F.Y(MV.y0)-F.Y(MV.y1))}"/>`;
+ o+=line(F.X(0.5),F.Y(MV.y1),F.X(0.5),F.Y(MV.y0),'street')+dotsSvg(F,i=>inb(i)?'':'f');lm.innerHTML=o;
+ const v={x0:0,x1:0.5,y0:0,y1:0.45},G=frame(lp,v,{t:14,r:16,b:30,l:38}),{X,Y,W}=G;let g='';
+ [0.1,0.2,0.3,0.4].forEach(d=>g+=line(X(0),Y(d),X(0.5),Y(d),'gl')+txt(X(0)-6,Y(d)+4,d.toFixed(1),'','end'));
+ g+=line(X(0),Y(0),X(0.5),Y(0),'axis');(W<420?[0,0.25,0.5]:[0,0.1,0.2,0.3,0.4,0.5]).forEach(d=>g+=txt(X(d),Y(0)+18,String(d),'','middle'));
+ g+=`<path class="ref" d="${path([[X(0),Y(0)],[X(0.5),Y(0.375)]])}"/>`;
+ g+=`<path class="cv" d="${path(range(0,0.5,100).map(t=>[X(t),Y(0.75*t+t**3/4)]))}"/>`;
+ g+=txt(X(0)+4,Y(0.43),'P(w)','mt')+txt(X(0.5),Y(0)-8,'w','mt','end');
+ g+=`<circle class="pt" cx="${r1(X(w))}" cy="${r1(Y(p))}" r="6"/>`;
+ lp.innerHTML=g;
+ $('#lp1').textContent=p.toFixed(3);
+ $('#lp2').textContent=`(0.5 + ${(w/2).toFixed(4)})³ − (0.5 − ${(w/2).toFixed(4)})³ = 0.75(${w.toFixed(3)}) + (${w.toFixed(3)})³/4`;
+ $('#lp3').textContent=w===0?'Zero width: the band is just the line x = 0.5, so the probability is exactly 0.':`${n} of 500 simulated accidents fall in the band; the model expects ${(N*p).toFixed(1)}.`};
+wi.addEventListener('input',drawL);
+
+/* find k */
+const kf=$('#kfig'),ki=$('#k');
+const drawK=()=>{const k=+ki.value,area=16*k/3,ok=Math.abs(area-1)<0.004;
+ $('#ko').textContent=k.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');$('#ka').textContent=area.toFixed(3);
+ const st=$('#ks');st.textContent=ok?'Area is 1, so this is a valid density: k = 3/16.':area<1?'Too little area. Raise k.':'Too much area. Lower k.';st.dataset.ok=ok?'1':'0';
+ const v={x0:-1.45,x1:1.45,y0:0,y1:0.95},G=frame(kf,v,{t:14,r:14,b:30,l:42}),{X,Y}=G;let g='';
+ [0.25,0.5,0.75].forEach(d=>g+=line(X(v.x0),Y(d),X(v.x1),Y(d),'gl')+txt(X(v.x0)-6,Y(d)+4,d.toFixed(2),'','end'));
+ g+=line(X(v.x0),Y(0),X(v.x1),Y(0),'axis');[-1,0,1].forEach(d=>g+=txt(X(d),Y(0)+18,fx(d,0),'','middle'));
+ const xs=range(-1,1,120),cur=xs.map(x=>[X(x),Y(k*(3-x*x))]);
+ g+=`<path class="ar" d="${path([[X(-1),Y(0)],...cur,[X(1),Y(0)]])}Z"/>`;
+ g+=`<path class="cv" d="${path([[X(v.x0),Y(0)],[X(-1),Y(0)],...cur,[X(1),Y(0)],[X(v.x1),Y(0)]])}"/>`;
+ g+=txt(X(0),Y(3*k)-10,`peak 3k = ${(3*k).toFixed(3)}`,'','middle');
+ if(Y(0)-Y(3*k)>60)g+=txt(X(0),Y(k)+5,`area ${area.toFixed(3)}`,'val','middle');
+ kf.innerHTML=g};
+ki.addEventListener('input',drawK);
+$('#solve').addEventListener('click',()=>{ki.value='0.1875';drawK()});
+
+/* CDF */
+const ff=$('#Ffig'),ai=$('#a'),bi=$('#b');
+const drawF=()=>{let a=+ai.value,b=+bi.value;if(a>b){const t=a;a=b;b=t}
+ $('#ao').textContent=fx(+ai.value,2);$('#bo2').textContent=fx(+bi.value,2);
+ const W=ff.clientWidth,H=ff.clientHeight,m={t:14,r:64,b:28,l:40},gap=26,ph=Math.max(40,H-m.t-m.b-gap),h1=ph*0.52,h2=ph-h1,v0=-1.3,v1=1.3;
+ const X=d=>m.l+(d-v0)/(v1-v0)*Math.max(10,W-m.l-m.r),Yt=d=>m.t+(0.62-d)/0.62*h1,Yb=d=>m.t+h1+gap+(1.05-d)/1.05*h2;
+ const fa=F1(a),fb=F1(b),f=x=>K*(3-x*x);let g='';
+ [0.25,0.5].forEach(d=>g+=line(X(v0),Yt(d),X(v1),Yt(d),'gl')+txt(X(v0)-6,Yt(d)+4,d.toFixed(2),'','end'));
+ [0.5,1].forEach(d=>g+=line(X(v0),Yb(d),X(v1),Yb(d),'gl')+txt(X(v0)-6,Yb(d)+4,d.toFixed(1),'','end'));
+ g+=line(X(v0),Yt(0),X(v1),Yt(0),'axis')+line(X(v0),Yb(0),X(v1),Yb(0),'axis');
+ [-1,0,1].forEach(d=>g+=txt(X(d),Yb(0)+18,fx(d,0),'','middle'));
+ if(b>a)g+=`<path class="ar" d="${path([[X(a),Yt(0)],...range(a,b,80).map(x=>[X(x),Yt(f(x))]),[X(b),Yt(0)]])}Z"/>`;
+ const xs=range(-1,1,120);
+ g+=`<path class="cv" d="${path([[X(v0),Yt(0)],[X(-1),Yt(0)],...xs.map(x=>[X(x),Yt(f(x))]),[X(1),Yt(0)],[X(v1),Yt(0)]])}"/>`;
+ g+=`<path class="cvb" d="${path([[X(v0),Yb(0)],...xs.map(x=>[X(x),Yb(F1(x))]),[X(v1),Yb(1)]])}"/>`;
+ g+=line(X(a),Yt(f(a)),X(a),Yb(fa),'guide')+line(X(b),Yt(f(b)),X(b),Yb(fb),'guide');
+ g+=line(X(a),Yb(fa),X(v1),Yb(fa),'guide')+line(X(b),Yb(fb),X(v1),Yb(fb),'guide');
+ g+=txt(X(a),Yt(0)+17,'a','mt','middle')+txt(X(b),Yt(0)+17,'b','mt','middle');
+ g+=`<circle class="ptb" cx="${r1(X(a))}" cy="${r1(Yb(fa))}" r="5"/><circle class="ptb" cx="${r1(X(b))}" cy="${r1(Yb(fb))}" r="5"/>`;
+ const bx=X(v1)+10;g+=line(bx,Yb(fa),bx,Yb(fb),'brk')+txt(bx+8,(Yb(fa)+Yb(fb))/2+5,(fb-fa).toFixed(3),'val');
+ g+=txt(X(v0)+2,m.t+12,'f(x) = (3/16)(3 − x²)','mt')+txt(X(v0)+2,Yb(1.05)+12,'F(x) = (8 + 9x − x³)/16','mt');
+ ff.innerHTML=g;
+ $('#fr').textContent=`F(${fx(b,2)}) − F(${fx(a,2)}) = ${fb.toFixed(3)} − ${fa.toFixed(3)} = ${(fb-fa).toFixed(3)}`};
+ai.addEventListener('input',drawF);bi.addEventListener('input',drawF);
+document.querySelectorAll('[data-ab]').forEach(btn=>btn.addEventListener('click',()=>{const[a,b]=btn.dataset.ab.split(',');ai.value=a;bi.value=b;drawF()}));
+
+$('#again').addEventListener('click',()=>{seed=(Date.now()%2147483646)+1;rnd();sim();drawHero();drawSq();drawC();drawL();if(mode!=='map')readSq()});
+
+const draws=new Map([[hs,drawHero],[ss,drawSq],[cm,drawC],[cp,drawC],[lm,drawL],[lp,drawL],[kf,drawK],[ff,drawF]]);
+const ro=new ResizeObserver(es=>{const done=new Set();es.forEach(e=>{const d=draws.get(e.target);if(d&&!done.has(d)){done.add(d);d()}})});
+draws.forEach((d,el)=>ro.observe(el));
+}
+</script>
+</body>
+</html>
